@@ -1,0 +1,11 @@
+* {
+    font-family: tahoma;
+}
+
+QPushButton{
+
+}
+
+QPushButton#wraning {
+    color: rad;
+}
