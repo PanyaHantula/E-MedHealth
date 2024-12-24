@@ -52,17 +52,9 @@ class MainWindow (QMainWindow):
         self.setupUI()
         self.setThread()
         
+        # request thread
         self.ECGgetValue_requested.emit()           
         self.SpO2getValue_requested.emit()
-        # self.timer = QtCore.QTimer()
-        # self.timer.setInterval(200)
-        # self.timer.timeout.connect(self.update_ECG_plot_data)
-        # self.timer.start()
-        
-        # self.timer_SpO2 = QtCore.QTimer()
-        # self.timer_SpO2.setInterval(200)
-        # self.timer_SpO2.timeout.connect(self.update_SpO2_plot_data)
-        # self.timer_SpO2.start()
         
     def setupUI(self):
         # -------- Create widget -----------
@@ -171,11 +163,21 @@ class MainWindow (QMainWindow):
         # Blood pressure monitor Button
         lbl_btnBloodPressure = QLabel('Blood Pressure Monitor')
         lbl_btnBloodPressure.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.btnBloodPressure = QPushButton("ON")
-        self.btnBloodPressure.setFixedSize(100,80)
+        self.btnBloodPressure = QPushButton("START")
+        self.btnBloodPressure.setFixedSize(80,60)
         self.btnBloodPressure.clicked.connect(self.show_new_window)
-        # self.btn_Blood_Pressure.setStyleSheet(''' background-color : darkGrey; color: black;''')
-        
+        self.btnBloodPressure.setStyleSheet(
+            '''
+                background-color: darkgreen;
+                border-style: outset;
+                border-width: 2px;
+                border-radius: 10px;
+                border-color: beige;
+                font: bold 14px;
+                min-width: 8em;
+                padding: 15px;
+            '''
+        )
         
         # Server response
         self.lbl_txt_response = QLabel('-')
@@ -291,20 +293,20 @@ class MainWindow (QMainWindow):
         self.SpO2getValue_thread.start()
         
     def update_ECG_plot_data(self,v):
-        self.ECG_Ax = self.ECG_Ax[1:]  # Remove the first y element.
-        self.ECG_Ax.append(self.ECG_Ax[-1] + 1)  # Add a new value 1 higher than the last.
+        # self.ECG_Ax = self.ECG_Ax[1:]  # Remove the first y element.
+        # self.ECG_Ax.append(self.ECG_Ax[-1] + 1)  # Add a new value 1 higher than the last.
         self.ECG_Ay = self.ECG_Ay[1:]  # Remove the first
         self.ECG_Ay.append(v)  # Add a new random value.
         self.ECG_Plot.setData(self.ECG_Ax, self.ECG_Ay)  # Update the data.
 
     def update_SpO2_plot_data(self,v):
-        self.SpO2_Ax = self.SpO2_Ax[1:]  # Remove the first y element.
-        self.SpO2_Ax.append(self.SpO2_Ax[-1] + 1)  # Add a new value 1 higher than the last.
+        # self.SpO2_Ax = self.SpO2_Ax[1:]  # Remove the first y element.
+        # self.SpO2_Ax.append(self.SpO2_Ax[-1] + 1)  # Add a new value 1 higher than the last.
         self.SpO2_Ay = self.SpO2_Ay[1:]  # Remove the first
         self.SpO2_Ay.append(v)  # Add a new random value.
         self.SpO2_Plot.setData(self.SpO2_Ax, self.SpO2_Ay)  # Update the data.
 
-    def show_new_window(self, checked):
+    def show_new_window(self):
         self.BloodPressureWindows.setWindowTitle("Blood Pressure Monitor")
         self.BloodPressureWindows.setFixedSize(QSize(480, 320))
         self.BloodPressureWindows.show()
