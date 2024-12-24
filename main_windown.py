@@ -179,7 +179,6 @@ class MainWindow (QMainWindow):
             '''
         )
         
-        
         # Server response
         self.lbl_txt_response = QLabel('-')
         self.lbl_txt_response.setFixedHeight(10)
@@ -307,7 +306,7 @@ class MainWindow (QMainWindow):
         self.SpO2_Ay.append(v)  # Add a new random value.
         self.SpO2_Plot.setData(self.SpO2_Ax, self.SpO2_Ay)  # Update the data.
 
-    def show_new_window(self, checked):
+    def show_new_window(self):
         self.BloodPressureWindows.setWindowTitle("Blood Pressure Monitor")
         self.BloodPressureWindows.setFixedSize(QSize(480, 320))
         self.BloodPressureWindows.show()
