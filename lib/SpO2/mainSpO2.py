@@ -3,7 +3,7 @@ import hrcalc as hrcalc
 import time
 import numpy as np
 
-class SpO2Monitor():
+class SpO2_Sensor():
     def __init__(self):
         self.bpm = 0
 
@@ -28,15 +28,18 @@ class SpO2Monitor():
         return hr2, sp2, red, ir
     
 def main ():
-    print('sensor starting...')
-    SpO2_Sensor = SpO2Monitor()
-    LOOP_TIME = 1
+    print('SpO2 Sensor starting...')
+    SpO2 = SpO2_Sensor()
+    wait = 1
 
     while True:
-        A, B = SpO2_Sensor.run_sensor()
+        hr2, sp2, red, ir = SpO2.GetSpO2Sensor()
         #print(A,B)
-        print("BPM: {:.2f}, SpO2: {:.2f}".format(A, B))
-        time.sleep(LOOP_TIME)
+        print("BPM: {:.2f}, SpO2: {:.2f}".format(hr2, sp2))
+        try:
+            time.sleep(wait)
+        except KeyboardInterrupt:
+            print('keyboard interrupt detected, exiting...')
 
 if __name__ == '__main__':
     main()

@@ -1,5 +1,5 @@
 import sys
-from PySide6 import QtCore
+from PySide6 import QtCore,QtGui
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, \
     QVBoxLayout, QPushButton, QLabel, QGroupBox
@@ -16,7 +16,7 @@ pg.setConfigOption('foreground', (197, 198, 199))
 class SpO2_UpdateValue(QObject):
     progress = Signal(int)
 
-    @Slot()
+    @Slot() # Example Generate data
     def randomGraph(self):
         while True:
             self.progress.emit(randint(0,1))           # return value between doing process in thread
@@ -37,18 +37,19 @@ class AnotherWindow(QWidget):
         layout = QVBoxLayout()
         self.label = QLabel("Another Window % d" % randint(0,100))
         layout.addWidget(self.label)
-        self.setLayout(layout)
-     
+        self.setLayout(layout)     
      
 class MainWindow (QMainWindow):
     ECGgetValue_requested = Signal() 
-    SpO2getValue_requested = Signal() 
+    SpO2getValue_requested = Signal()
     
     def __init__(self):
         super().__init__()
-        self.BloodPressureWindows = AnotherWindow()
         
+        self.BloodPressureWindows = AnotherWindow()
         self.setWindowTitle('E-MedHealth GUI')
+        self.showMaximized()
+        
         self.setupUI()
         self.setThread()
         
@@ -59,7 +60,7 @@ class MainWindow (QMainWindow):
     def setupUI(self):
         # -------- Create widget -----------
         self.mainWidget = QWidget()
-        self.resize(800, 480)
+        # self.resize(720, 1024)
         self.centralWidget = QWidget()
         self.setCentralWidget(self.centralWidget)
         
@@ -133,7 +134,7 @@ class MainWindow (QMainWindow):
         self.lbl_Measurement_title = QLabel("Measurement Results")
         self.lbl_Measurement_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_Measurement_title.setMargin(0)
-        self.lbl_Measurement_title.setStyleSheet(''' color: white ; font-family: 'Arial'; font-size: 17pt; text-align: TOP, Center; spacing: 5px;''')
+        self.lbl_Measurement_title.setStyleSheet(''' font-family: 'Arial'; font-size: 14pt; text-align: TOP, Center; spacing: 5px;''')
 
         # Value and sub-title of ECG
         lbl_title_ECG = QLabel('ECG Pluse')
@@ -167,7 +168,7 @@ class MainWindow (QMainWindow):
         self.btnBloodPressure.setFixedSize(80,60)
         self.btnBloodPressure.clicked.connect(self.show_new_window)
         self.btnBloodPressure.setStyleSheet(
-            '''
+            ''' color: white;
                 background-color: darkgreen;
                 border-style: outset;
                 border-width: 2px;
@@ -312,6 +313,7 @@ class MainWindow (QMainWindow):
         self.BloodPressureWindows.show()
         
 if __name__ == '__main__':
+  
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()

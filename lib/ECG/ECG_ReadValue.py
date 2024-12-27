@@ -8,13 +8,13 @@ from adafruit_ads1x15.analog_in import AnalogIn
 # Import Filter
 import scipy.signal as filter
 
-class ECGMonitor():
+class ECG_Sensor():
     def __init__(self):
         self.i2c = busio.I2C(board.SCL, board.SDA)      # Initialize the I2C interface
         self.ads = ADS.ADS1115( self.i2c)               # Create an ADS1115 object
 
-    def GetECGSensor (self, SamplePoint):
-        self.channel0 = AnalogIn(self.ads, ADS.P0)   
+    def ADC_ReadValue (self, SamplePoint):
+        self.channel0 = AnalogIn(self.ads, ADS.P0)      # Connect ECG to ADC0 on ADS1115 Module
         ECGdata = np.array([])
         cnt = SamplePoint + 20         # Buffer data at 20 point 
 
@@ -99,13 +99,22 @@ class ECGMonitor():
         return bpm
     
 def main():
-    ADS1115_ECG = ECGMonitor()
 
     print("Demo Code for ADS1115 : Get Raw ADC Data")
     print('Reading ADS1x15 channel 0...')
-    ECGValue = ADS1115_ECG.GetECGSensor()
-    #print("ECG: {:.2f}".format(ECGValue))
-    time.sleep(1)    
+    
+    ADS1115_ECG = ECG_Sensor()
+    wait = 1
+    SamplePoint = 400
+    
+    while True:
+        ECG_Filter, bpm = ADS1115_ECG.ADC_ReadValue(SamplePoint)
+        print("Average Heart Beat is:: {:.2f}".format(bpm))
+        
+        try:
+            time.sleep(wait)
+        except KeyboardInterrupt:
+            print('keyboard interrupt detected, exiting...')
 
 if __name__ == "__main__":
     main()
