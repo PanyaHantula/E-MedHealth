@@ -1,6 +1,6 @@
 import sys
 from PySide6 import QtCore,QtGui
-from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, \
     QVBoxLayout, QPushButton, QLabel, QGroupBox
 from PySide6.QtCore import QThread, QObject, Signal, Slot
@@ -11,41 +11,101 @@ from random import randint
 import time
 
 from lib.ECG.ECG_ReadValue import *
+from lib.SpO2.mainSpO2 import SpO2_Sensor
+from lib.Blood.BloodPressureSensor import BloodPressureSensor
 
 pg.setConfigOption('background', (33, 33, 33))
 pg.setConfigOption('foreground', (197, 198, 199))
 
 class SpO2_UpdateValue(QObject):
-    ProgressValue = Signal(int)
-
-    @Slot() # Example Generate data
-    def randomGraph(self):
+     # PyQt Signals
+    SpO2_ThreadProgress = Signal(int,int,np.ndarray,np.ndarray)
+    @Slot()
+    def GetSpO2_Value(self):
         while True:
-            self.ProgressValue.emit(randint(0,1))           # return value between doing process in thread
-            time.sleep(0.5)
+            # ir = [randint(0,1) for _ in range(100)]  # 100 data points
+            # red = [randint(0,1) for _ in range(100)]  # 100 data points
+            # hr = 0
+            # sp = 0
+            # time.sleep(1)
+            hr, sp, red, ir = SpO2.GetSpO2Sensor()
+            self.SpO2_ThreadProgress.emit(hr, sp, red, ir)
             
 class ECG_UpdateValue_Worker(QObject):
      # PyQt Signals
-    ECG_ThreadProgress = Signal(np.ndarray,float)
+    ECG_ThreadProgress = Signal(np.ndarray,int)
     @Slot()
     def GetECG_Value(self):
         while True:
+            # ECG_value = [randint(0,1) for _ in range(400)]  # 100 data points
+            # bpm = 0.0
+            # time.sleep(1)
             ECG_value, bpm = ADS1115_ECG.ADC_ReadValue()
             self.ECG_ThreadProgress.emit(ECG_value,bpm)
         
-class AnotherWindow(QWidget):
+class BloodPressureWindow(QWidget):   
     def __init__(self):
         super().__init__()
+        self.BloodSensor = BloodPressureSensor()
+            
         layout = QVBoxLayout()
-        self.label = QLabel("Another Window % d" % randint(0,100))
-        layout.addWidget(self.label)
-        self.setLayout(layout)     
+        self.lbl_BloodPressureWindow_title = QLabel("Blood Pressure Monitor")
+        self.lbl_BloodPressureWindow_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_BloodPressureWindow_title.setMargin(0)
+        self.lbl_BloodPressureWindow_title.setStyleSheet(
+            ''' 
+                font-family: 'Arial'; 
+                font: bold 30px;
+                text-align: TOP, Center; 
+                spacing: 5px;''')
+        
+        self.lbl_BloodWaitResponse = QLabel("Pass START Button")
+        self.lbl_BloodWaitResponse.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_BloodWaitResponse.setStyleSheet(
+            '''
+            color: Blue;
+            font-family: 'Arial';
+            font: bold 20px;
+            text-align: center;
+            '''
+        )
+                
+        self.btnBloodPressure = QPushButton("START")
+        # self.btnBloodPressure.setFixedSize(50,50)
+        self.btnBloodPressure.clicked.connect(self.BloodPresureStart)
+        # self.btnBloodPressure.clicked.connect(self.ReadBloodPresure)
+        self.btnBloodPressure.setStyleSheet(
+            ''' color: white;
+                background-color: darkgreen;
+                border-style: outset;
+                border-width: 2px;
+                border-radius: 10px;
+                border-color: beige;
+                font: bold 20px;
+                min-width: 6em;
+                padding: 15px;
+            '''
+        )
+        
+        layout.addWidget(self.lbl_BloodPressureWindow_title)
+        layout.addWidget(self.lbl_BloodWaitResponse)
+        layout.addWidget(self.btnBloodPressure)
+        self.setLayout(layout)    
+        
+    def BloodPresureStart(self):
+        self.btnBloodPressure.hide()
+        self.lbl_BloodWaitResponse.setText('Please Wait a few minute')
+        self.BloodPresureGetdata()
+        
+    def BloodPresureGetdata(self):
+        SYS,DIA,PUL = self.BloodSensor.Start()
+        print(f'SYS : {SYS}, DIA : {DIA}, PUL : {PUL}')
      
 class MainWindow (QMainWindow):  
     def __init__(self):
         super().__init__()
         
-        self.BloodPressureWindows = AnotherWindow()
+        self.BloodPressureWindows = BloodPressureWindow()
         self.setWindowTitle('E-MedHealth GUI')
         self.showMaximized()
         
@@ -58,14 +118,13 @@ class MainWindow (QMainWindow):
         # self.resize(720, 1024)
         self.centralWidget = QWidget()
         self.setCentralWidget(self.centralWidget)
-        
         # ------- Create and connect widgets --------
         # -> Graph ECG Plot
         lbl_graph_ECG = QLabel("ECG")
         lbl_graph_ECG.setStyleSheet(''' font-size: 10pt; padding:0px; ''' )
         # self.WidgetGraph_ECG = pg.PlotWidget(labels={'left': 'Amplitude', 'bottom': 'Time [microseconds]'})
         self.WidgetGraph_ECG = pg.PlotWidget(labels={'left': 'Amplitude'})
-        self.WidgetGraph_ECG.setYRange(0, 1.1)
+        # self.WidgetGraph_ECG.setYRange(0, 1.1)
         self.ECG_Ax = list(range(400))         # 100 time points
         self.ECG_Ay = [0 for _ in range(400)]  # 100 data points
         #print(f"ECG.ax type : {type(self.ECG_Ax)}")
@@ -77,7 +136,7 @@ class MainWindow (QMainWindow):
         lbl_graph_SpO2 = QLabel("SpO2")
         lbl_graph_SpO2.setStyleSheet(''' font-size: 10pt; padding:0px; ''' )
         self.WidgetGraph_SpO2 = pg.PlotWidget(labels={'left': 'Amplitude'})
-        self.WidgetGraph_SpO2.setYRange(0, 1.1)
+        # self.WidgetGraph_SpO2.setYRange(0, 1.1)
         self.SpO2_Ax = list(range(100))  # 100 time points
         self.SpO2_Ay = [0 for _ in range(100)]  # 100 data points
         pen = pg.mkPen(color=(0, 0, 255))
@@ -122,6 +181,26 @@ class MainWindow (QMainWindow):
         self.lbl_PUL_resulte.setFixedWidth(120)
         self.lbl_PUL_resulte.setStyleSheet('''font-family: 'Arial'; font-size: 40pt; text-align: TOP, Center; spacing: 5px;''')
 
+        # Blood pressure monitor Button
+        lbl_btnBloodPressure = QLabel('Blood Pressure')
+        lbl_btnBloodPressure.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btnBloodPressure = QPushButton("ON")
+        # self.btnBloodPressure.setFixedSize(50,50)
+        self.btnBloodPressure.clicked.connect(self.show_new_window)
+        # self.btnBloodPressure.clicked.connect(self.ReadBloodPresure)
+        self.btnBloodPressure.setStyleSheet(
+            ''' color: white;
+                background-color: darkgreen;
+                border-style: outset;
+                border-width: 2px;
+                border-radius: 10px;
+                border-color: beige;
+                font: bold 14px;
+                min-width: 5em;
+                padding: 15px;
+            '''
+        )
+        
         # Credit
         self.lbl_Credited_SUT = QLabel('E-Medhealth by Suranaree University of Technology (SUT)')
         self.lbl_Credited_SUT.setMargin(0)
@@ -139,7 +218,7 @@ class MainWindow (QMainWindow):
         self.ECG_data = '-'
         self.lbl_ecg_resulte = QLabel(f'{self.ECG_data}')
         self.lbl_ecg_resulte.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_ecg_resulte.setFixedWidth(200)
+        # self.lbl_ecg_resulte.setFixedWidth(200)
         self.lbl_ecg_resulte.setStyleSheet(''' color: darkGreen ; font-family: 'Arial'; font-size: 40pt; text-align: TOP, Center; spacing: 5px;''')
 
         # Value and sub-title of SpO2
@@ -157,32 +236,23 @@ class MainWindow (QMainWindow):
         self.lbl_bpm_resulte = QLabel(f'{self.bpm_data}')
         self.lbl_bpm_resulte.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_bpm_resulte.setStyleSheet(''' color: magenta; font-family: 'Arial'; font-size: 40pt; text-align: TOP, Center; spacing: 5px;'''  )
-
-        # Blood pressure monitor Button
-        lbl_btnBloodPressure = QLabel('Blood Pressure Monitor')
-        lbl_btnBloodPressure.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.btnBloodPressure = QPushButton("START")
-        self.btnBloodPressure.setFixedSize(80,60)
-        self.btnBloodPressure.clicked.connect(self.show_new_window)
-        self.btnBloodPressure.setStyleSheet(
-            ''' color: white;
-                background-color: darkgreen;
-                border-style: outset;
-                border-width: 2px;
-                border-radius: 10px;
-                border-color: beige;
-                font: bold 14px;
-                min-width: 8em;
-                padding: 15px;
-            '''
-        )
         
-        # Server response
+        # Upload data
+        lbl_title_sync = QLabel('Upload data')
+        lbl_title_sync.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        self.btnSyncServer = QPushButton("Sync")
+        self.btnSyncServer.setFixedSize(50,30)
+        
+        # Server Response
         self.lbl_txt_response = QLabel('-')
-        self.lbl_txt_response.setFixedHeight(10)
+        self.lbl_txt_response.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # self.lbl_txt_response.setFixedHeight(10)
         self.lbl_txt_response.setMargin(0)
         self.lbl_txt_response.setStyleSheet(''' font-family: 'Tahoma'; font-size: 7pt; spacing: 0px; '''  )
-
+        
+        self.footer = QLabel("")
+        
         # ------- Set the layout ---------
         H1_Layout = QVBoxLayout()
         H2_Layout = QVBoxLayout()
@@ -196,7 +266,10 @@ class MainWindow (QMainWindow):
         self.graph_gbox = QGroupBox()
         self.graph_gbox.setLayout(self.graphLayout)
         
-        # NIBP Layout GroupBox
+        # NIBP Layout 
+        self.mainNIBP_Layout = QHBoxLayout()
+        
+        # NIBP Page Layout
         self.Label_title_NIBP_Layout = QHBoxLayout()
         self.Label_title_NIBP_Layout.addWidget(lbl_titleNIBP)
         self.Label_title_NIBP_Layout.addWidget(self.lbl_time_stamp)
@@ -211,8 +284,22 @@ class MainWindow (QMainWindow):
         self.NIBP_Layout.addLayout(self.Label_title_NIBP_Layout)
         self.NIBP_Layout.addLayout(self.Label_Value_NIBP_Layout)
         
+        # NIBP GroupBox
         self.NIBP_gbox = QGroupBox()
         self.NIBP_gbox.setLayout(self.NIBP_Layout)
+        
+         # Blood pressure Button GroupBox
+        self.btnBloodPressureLayout = QVBoxLayout()
+        self.btnBloodPressureLayout.addWidget(lbl_btnBloodPressure)
+        self.btnBloodPressureLayout.addWidget(self.btnBloodPressure,alignment=QtCore.Qt.AlignCenter)
+        
+        self.btn_BloodPressure_gbox = QGroupBox()
+        self.btn_BloodPressure_gbox.setFixedWidth(150)
+        self.btn_BloodPressure_gbox.setLayout(self.btnBloodPressureLayout)
+        
+        # Add to main NIBP Layout
+        self.mainNIBP_Layout.addWidget(self.NIBP_gbox)
+        self.mainNIBP_Layout.addWidget(self.btn_BloodPressure_gbox)
         
         # ECG Value Layout GroupBox
         self.Label_ECG_Value_Layout = QVBoxLayout()
@@ -238,24 +325,24 @@ class MainWindow (QMainWindow):
         self.bpm_Value_gbox.setFixedWidth(200)
         self.bpm_Value_gbox.setLayout(self.Label_bpm_Value_Layout)
         
-        # Blood pressure Button GroupBox
-        self.btnBloodPressureLayout = QVBoxLayout()
-        self.btnBloodPressureLayout.addWidget(lbl_btnBloodPressure)
-        self.btnBloodPressureLayout.addWidget(self.btnBloodPressure,alignment=QtCore.Qt.AlignCenter)
-        self.btn_BloodPressure_gbox = QGroupBox()
-        self.btn_BloodPressure_gbox.setFixedWidth(200)
-        self.btn_BloodPressure_gbox.setLayout(self.btnBloodPressureLayout)
+        self.Label_Sync_Layout = QVBoxLayout()
+        self.Label_Sync_Layout.addWidget(lbl_title_sync)
+        self.Label_Sync_Layout.addWidget(self.btnSyncServer)
+        self.Label_Sync_Layout.addWidget(self.lbl_txt_response)
+        self.SyncResponse_gbox = QGroupBox()
+        self.SyncResponse_gbox.setFixedWidth(200)
+        self.SyncResponse_gbox.setLayout(self.Label_Sync_Layout)
         
         # ------- Add Layout to H1 Layout ---------
         H1_Layout.addWidget(self.graph_gbox)
-        H1_Layout.addWidget(self.NIBP_gbox)
+        H1_Layout.addLayout(self.mainNIBP_Layout)
         H1_Layout.addWidget(self.lbl_Credited_SUT)
         H2_Layout.addWidget(self.lbl_Measurement_title)
         H2_Layout.addWidget(self.ECG_Value_gbox)
         H2_Layout.addWidget(self.SpO2_Value_gbox)
         H2_Layout.addWidget(self.bpm_Value_gbox)
-        H2_Layout.addWidget(self.btn_BloodPressure_gbox)
-        H2_Layout.addWidget(self.lbl_txt_response)
+        H2_Layout.addWidget(self.SyncResponse_gbox)
+        H2_Layout.addWidget(self.footer)
          
         # ------- Add Layout to mainLayout ---------
         mainLayout = QHBoxLayout()
@@ -286,22 +373,23 @@ class MainWindow (QMainWindow):
         self.SpO2_Work.moveToThread(self.SpO2_thread)
 
         # SpO2 Thread Connect signals and slots
-        self.SpO2_thread.started.connect(self.SpO2_Work.randomGraph)
-        self.SpO2_Work.ProgressValue.connect(self.update_SpO2_plot_data)
+        self.SpO2_thread.started.connect(self.SpO2_Work.GetSpO2_Value)
+        self.SpO2_Work.SpO2_ThreadProgress.connect(self.update_SpO2_plot_data)
         self.SpO2_thread.start()
         
     def update_ECG_plot_data(self, ECG_value,bpm):
         self.ECG_Ay = list(ECG_value)
         self.ECG_Plot.setData(self.ECG_Ax, self.ECG_Ay)  # Update the data.
-        # print(f"Average Heart Beat is: {bpm}") 
+        self.lbl_ecg_resulte.setText(f'{bpm}')
+        # print(f"ECG -> bpm : {bpm}") 
 
-    def update_SpO2_plot_data(self,data):
-        # self.SpO2_Ax = self.SpO2_Ax[1:]  # Remove the first y element.
-        # self.SpO2_Ax.append(self.SpO2_Ax[-1] + 1)  # Add a new value 1 higher than the last.
-        self.SpO2_Ay = self.SpO2_Ay[1:]  # Remove the first
-        self.SpO2_Ay.append(data)  # Add a new random value.
-        self.SpO2_Plot.setData(self.SpO2_Ax, self.SpO2_Ay)  # Update the data.
-
+    def update_SpO2_plot_data(self,hr, sp, red, ir):
+        self.SpO2_Ay = list(ir)
+        self.SpO2_Plot.setData(self.SpO2_Ax, self.SpO2_Ay)  # Update the data..
+        self.lbl_SpO2_resulte.setText(f'{sp}')
+        self.lbl_bpm_resulte.setText(f'{hr}')
+        # print(f"SpO2 -> BPM: {hr}, SpO2: {sp}")
+        
     def show_new_window(self):
         self.BloodPressureWindows.setWindowTitle("Blood Pressure Monitor")
         self.BloodPressureWindows.setFixedSize(QSize(480, 320))
@@ -310,6 +398,7 @@ class MainWindow (QMainWindow):
 if __name__ == '__main__':
 
     ADS1115_ECG = ECG_Sensor()
+    SpO2 = SpO2_Sensor()
     
     app = QApplication(sys.argv)
     window = MainWindow()
