@@ -1,5 +1,5 @@
-from max30102 import MAX30102
-import hrcalc as hrcalc
+from lib.SpO2.hrcalc import calc_hr_and_spo2
+from lib.SpO2.max30102 import MAX30102
 import time
 import numpy as np
 
@@ -13,7 +13,7 @@ class SpO2_Sensor():
         sp2 = 0
 
         red, ir = m.read_sequential()
-        hr,hrb,sp,spb = hrcalc.calc_hr_and_spo2(ir, red)
+        hr,hrb,sp,spb = calc_hr_and_spo2(ir, red)
 
         #print("hr detected:",hrb)
         #print("sp detected:",spb)
@@ -25,7 +25,12 @@ class SpO2_Sensor():
             sp2 = int(sp)
             #print("SPO2       : ",sp2)
 
-        return hr2, sp2, red, ir
+        ir = ir[10:110]
+        red = red[10:110]
+        SpO2_red_Norm = red / np.max(red)
+        SpO2_ir_Norm = ir / np.max(ir)
+        
+        return hr2, sp2, SpO2_red_Norm, SpO2_ir_Norm
     
 def main ():
     print('SpO2 Sensor starting...')
