@@ -10,27 +10,29 @@ from datetime import datetime
 from random import randint
 import time
 
+from lib.ECG.ECG_ReadValue import *
+
 pg.setConfigOption('background', (33, 33, 33))
 pg.setConfigOption('foreground', (197, 198, 199))
 
 class SpO2_UpdateValue(QObject):
-    progress = Signal(int)
+    ProgressValue = Signal(int)
 
     @Slot() # Example Generate data
     def randomGraph(self):
         while True:
-            self.progress.emit(randint(0,1))           # return value between doing process in thread
+            self.ProgressValue.emit(randint(0,1))           # return value between doing process in thread
             time.sleep(0.5)
             
-class ECG_UpdateValue(QObject):
-    progress = Signal(int)
-
+class ECG_UpdateValue_Worker(QObject):
+     # PyQt Signals
+    ECG_ThreadProgress = Signal(np.ndarray,float)
     @Slot()
-    def randomGraph(self):
+    def GetECG_Value(self):
         while True:
-            self.progress.emit(randint(0,1))           # return value between doing process in thread
-            time.sleep(1)
-
+            ECG_value, bpm = ADS1115_ECG.ADC_ReadValue()
+            self.ECG_ThreadProgress.emit(ECG_value,bpm)
+        
 class AnotherWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -39,10 +41,7 @@ class AnotherWindow(QWidget):
         layout.addWidget(self.label)
         self.setLayout(layout)     
      
-class MainWindow (QMainWindow):
-    ECGgetValue_requested = Signal() 
-    SpO2getValue_requested = Signal()
-    
+class MainWindow (QMainWindow):  
     def __init__(self):
         super().__init__()
         
@@ -52,11 +51,7 @@ class MainWindow (QMainWindow):
         
         self.setupUI()
         self.setThread()
-        
-        # request thread
-        self.ECGgetValue_requested.emit()           
-        self.SpO2getValue_requested.emit()
-        
+               
     def setupUI(self):
         # -------- Create widget -----------
         self.mainWidget = QWidget()
@@ -70,9 +65,11 @@ class MainWindow (QMainWindow):
         lbl_graph_ECG.setStyleSheet(''' font-size: 10pt; padding:0px; ''' )
         # self.WidgetGraph_ECG = pg.PlotWidget(labels={'left': 'Amplitude', 'bottom': 'Time [microseconds]'})
         self.WidgetGraph_ECG = pg.PlotWidget(labels={'left': 'Amplitude'})
-        self.WidgetGraph_ECG.setYRange(-1.1, 1.1)
-        self.ECG_Ax = list(range(100))         # 100 time points
-        self.ECG_Ay = [0 for _ in range(100)]  # 100 data points
+        self.WidgetGraph_ECG.setYRange(0, 1.1)
+        self.ECG_Ax = list(range(400))         # 100 time points
+        self.ECG_Ay = [0 for _ in range(400)]  # 100 data points
+        #print(f"ECG.ax type : {type(self.ECG_Ax)}")
+        #print(f"ECG.yx type : {type(self.ECG_Ay)}")
         pen = pg.mkPen(color=(255, 0, 0))
         self.ECG_Plot = self.WidgetGraph_ECG.plot(self.ECG_Ax, self.ECG_Ay, pen=pen)
 
@@ -80,7 +77,7 @@ class MainWindow (QMainWindow):
         lbl_graph_SpO2 = QLabel("SpO2")
         lbl_graph_SpO2.setStyleSheet(''' font-size: 10pt; padding:0px; ''' )
         self.WidgetGraph_SpO2 = pg.PlotWidget(labels={'left': 'Amplitude'})
-        self.WidgetGraph_SpO2.setYRange(-1.1, 1.1)
+        self.WidgetGraph_SpO2.setYRange(0, 1.1)
         self.SpO2_Ax = list(range(100))  # 100 time points
         self.SpO2_Ay = [0 for _ in range(100)]  # 100 data points
         pen = pg.mkPen(color=(0, 0, 255))
@@ -270,41 +267,39 @@ class MainWindow (QMainWindow):
         self.setCentralWidget(self.mainWidget)       # launch Windows UI 
     
     def setThread(self):
-        # ECG Thread
-        self.ECGgetValue_thread = QThread()
-        self.ECGgetValue = ECG_UpdateValue()
-        self.ECGgetValue.moveToThread(self.ECGgetValue_thread)
+        # Initialize worker and thread
+        # ECG Thread worker
+        self.ECG_thread = QThread()
+        self.ECG_thread.setObjectName('ECG_thread')
+        self.ECG_Worker = ECG_UpdateValue_Worker()
+        self.ECG_Worker.moveToThread(self.ECG_thread)
         
-        self.ECGgetValue.progress.connect(self.update_ECG_plot_data)
-        self.ECGgetValue_requested.connect(self.ECGgetValue.randomGraph)
-        self.ECGgetValue_thread.finished.connect(self.ECGgetValue.deleteLater)
-        self.ECGgetValue_thread.finished.connect(self.ECGgetValue_thread.deleteLater)
-        self.ECGgetValue_thread.start()
+        # ECG Thread Connect signals and slots
+        self.ECG_thread.started.connect(self.ECG_Worker.GetECG_Value)
+        self.ECG_Worker.ECG_ThreadProgress.connect(self.update_ECG_plot_data)
+        self.ECG_thread.start()
         
         # SpO2 Thread
-        self.SpO2getValue_thread = QThread()
-        self.SpO2getValue = SpO2_UpdateValue()
-        self.SpO2getValue.moveToThread(self.SpO2getValue_thread)
-        
-        self.SpO2getValue.progress.connect(self.update_SpO2_plot_data)
-        self.SpO2getValue_requested.connect(self.SpO2getValue.randomGraph)
-        
-        self.SpO2getValue_thread.finished.connect(self.SpO2getValue.deleteLater)
-        self.SpO2getValue_thread.finished.connect(self.SpO2getValue_thread.deleteLater)
-        self.SpO2getValue_thread.start()
-        
-    def update_ECG_plot_data(self,v):
-        # self.ECG_Ax = self.ECG_Ax[1:]  # Remove the first y element.
-        # self.ECG_Ax.append(self.ECG_Ax[-1] + 1)  # Add a new value 1 higher than the last.
-        self.ECG_Ay = self.ECG_Ay[1:]  # Remove the first
-        self.ECG_Ay.append(v)  # Add a new random value.
-        self.ECG_Plot.setData(self.ECG_Ax, self.ECG_Ay)  # Update the data.
+        self.SpO2_thread = QThread()
+        self.SpO2_thread.setObjectName('SpO2_thread')
+        self.SpO2_Work = SpO2_UpdateValue()
+        self.SpO2_Work.moveToThread(self.SpO2_thread)
 
-    def update_SpO2_plot_data(self,v):
+        # SpO2 Thread Connect signals and slots
+        self.SpO2_thread.started.connect(self.SpO2_Work.randomGraph)
+        self.SpO2_Work.ProgressValue.connect(self.update_SpO2_plot_data)
+        self.SpO2_thread.start()
+        
+    def update_ECG_plot_data(self, ECG_value,bpm):
+        self.ECG_Ay = list(ECG_value)
+        self.ECG_Plot.setData(self.ECG_Ax, self.ECG_Ay)  # Update the data.
+        # print(f"Average Heart Beat is: {bpm}") 
+
+    def update_SpO2_plot_data(self,data):
         # self.SpO2_Ax = self.SpO2_Ax[1:]  # Remove the first y element.
         # self.SpO2_Ax.append(self.SpO2_Ax[-1] + 1)  # Add a new value 1 higher than the last.
         self.SpO2_Ay = self.SpO2_Ay[1:]  # Remove the first
-        self.SpO2_Ay.append(v)  # Add a new random value.
+        self.SpO2_Ay.append(data)  # Add a new random value.
         self.SpO2_Plot.setData(self.SpO2_Ax, self.SpO2_Ay)  # Update the data.
 
     def show_new_window(self):
@@ -313,7 +308,9 @@ class MainWindow (QMainWindow):
         self.BloodPressureWindows.show()
         
 if __name__ == '__main__':
-  
+
+    ADS1115_ECG = ECG_Sensor()
+    
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
