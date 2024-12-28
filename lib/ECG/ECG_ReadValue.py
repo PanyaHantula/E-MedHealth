@@ -7,16 +7,17 @@ from adafruit_ads1x15.analog_in import AnalogIn
 
 # Import Filter
 import scipy.signal as filter
+import math
 
 class ECG_Sensor():
     def __init__(self):
         self.i2c = busio.I2C(board.SCL, board.SDA)      # Initialize the I2C interface
         self.ads = ADS.ADS1115( self.i2c)               # Create an ADS1115 object
 
-    def ADC_ReadValue (self, SamplePoint):
+    def ADC_ReadValue (self, SamplePoint = 400):
         self.channel0 = AnalogIn(self.ads, ADS.P0)      # Connect ECG to ADC0 on ADS1115 Module
         ECGdata = np.array([])
-        cnt = SamplePoint + 20         # Buffer data at 20 point 
+        cnt = SamplePoint        # Buffer data at 20 point 
 
         # Capture Time for cal HeartRate     
         start_time = time.time()   
@@ -35,11 +36,14 @@ class ECG_Sensor():
         # Cuting data
         ECG_Filter = self.ECG_Filter(ECGdata)
         ECG_peaklist = self.PeakDetect(ECG_Filter)
+        ECG_Norm = ECG_Filter / np.max(ECG_Filter)
         bpm = self.CalHeartRate(ECG_peaklist, TimePerIndex)
+        if math.isnan(bpm):
+            bpm = 0.0
         # print("Average Heart Beat is: %.01f" %(bpm)) #Round off to 1 decimal and print
         # print("No of peaks in sample are {0}".format(len(ECG_peaklist)))
 
-        return ECG_Filter, bpm
+        return ECG_Norm, bpm
 
     def ECG_Filter(self, RawData):
         # Filter requirements.
@@ -105,10 +109,9 @@ def main():
     
     ADS1115_ECG = ECG_Sensor()
     wait = 1
-    SamplePoint = 400
     
     while True:
-        ECG_Filter, bpm = ADS1115_ECG.ADC_ReadValue(SamplePoint)
+        ECG_Filter, bpm = ADS1115_ECG.ADC_ReadValue()
         print("Average Heart Beat is:: {:.2f}".format(bpm))
         
         try:
