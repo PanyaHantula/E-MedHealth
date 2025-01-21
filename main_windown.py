@@ -80,7 +80,7 @@ class MainWindow (QMainWindow):
         super().__init__()
         
         self.setWindowTitle('E-MedHealth GUI')
-        # self.showMaximized()
+        self.showMaximized()
         self.resize(800, 480)
         
         self.setupUI()
